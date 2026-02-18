@@ -4,6 +4,8 @@ import numpy as np
 def apply_invisible_cloak(frame, background):
     # convert to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+# Webcam frames come in BGR (OpenCV default).
+# HSV is better for color detection because hue (H) isolates color more consistently than RGB/BGR under changing lighting.
 
     # define red color ranges and create masks
     lower_green1 = np.array([35, 60, 40], dtype=np.uint8)
@@ -16,6 +18,19 @@ def apply_invisible_cloak(frame, background):
     mask1 = cv2.inRange(hsv, lower_green1, upper_green1)
     mask2 = cv2.inRange(hsv, lower_green2, upper_green2)
 
+# cv2.inRange() checks each pixel in HSV:
+# if pixel HSV is within [lower, upper], it becomes 255 (white) in the mask
+# otherwise 0 (black)
+# So the mask is a binary image:
+# White = “pixels that are green”
+# Black = “everything else”
+
+# Lighting changes can shift a “green” cloth into slightly different hue values.
+# Using two ranges helps catch:
+#     - yellow-green
+#     - darker greens
+#     - shaded cloth areas
+
     # combine masks and refine if needed
     mask = cv2.bitwise_or(mask1, mask2)
     # cv2.morphologyEx() applies morphological operations to improve a mask.
@@ -25,9 +40,16 @@ def apply_invisible_cloak(frame, background):
     # Segment out the green area using the mask (cloak area)
     cloak = cv2.bitwise_and(background, background, mask=mask)
 
+# mask selects only the green area.
+# This extracts the green-shaped region from the background image.
+# That means: “where the cloak is, show background pixels”.
+
     # create inverse mask and isolate cloak area
     inv_mask = cv2.bitwise_not(mask)
     rest = cv2.bitwise_and(frame, frame, mask=inv_mask)
+
+# inv_mask is white everywhere except the cloak region.
+# rest contains the “non-green” parts of the real frame (your body, room, etc.).
 
     # combine background with current frame
     final_output = cv2.add(rest, cloak)
